@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "engineering-calculator-framework"
+version = "0.1.0"
+description = "A foundation for reliable mechanical engineering calculators."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.scripts]
+engineering-calculator = "engineering_calculator.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
