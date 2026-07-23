@@ -7,6 +7,12 @@ from typing import Any
 CALCULATOR_ID = "stress.axial"
 CALCULATOR_NAME = "Axial Stress Calculator"
 CALCULATOR_VERSION = "0.1.0"
+CALCULATOR_CATEGORY = "Stress Analysis"
+ENGINEERING_DOMAIN = "Mechanics of Materials"
+CALCULATOR_PURPOSE = (
+    "Calculate the signed average normal stress in a member subjected to a "
+    "concentric axial force"
+)
 GOVERNING_EQUATION = "σ = F / A"
 
 _FORCE_TO_NEWTONS = {
@@ -43,6 +49,25 @@ _ASSUMPTIONS = [
     "Deformation is small enough that the original cross-sectional area remains appropriate.",
 ]
 
+_LIMITATIONS = [
+    "The calculation does not account for bending caused by eccentric loading.",
+    "The calculation does not evaluate shear stress or torsional stress.",
+    "The calculation does not evaluate local stress concentrations.",
+    "The calculation does not evaluate local bearing, contact, or crushing stress.",
+    "The calculation does not evaluate nonuniform stress near load introduction points.",
+    "The calculation does not evaluate buckling under compression.",
+    "The calculation does not evaluate plastic or nonlinear material behavior.",
+    "The calculation assumes small deformation and unchanged cross-sectional area.",
+    "The calculation does not evaluate residual, thermal, dynamic, impact, or cyclic stress.",
+    "The calculation does not evaluate fatigue, fracture, creep, or stress relaxation.",
+    "The calculation does not evaluate material strength, allowable stress, or factor of safety.",
+    "The calculation does not establish design-code or regulatory compliance.",
+]
+
+_REFERENCES = [
+    "R. C. Hibbeler, Mechanics of Materials, 10th Edition, normal stress under axial loading.",
+]
+
 
 def calculate_axial_stress(
     force_value: Real,
@@ -74,6 +99,9 @@ def calculate_axial_stress(
     area_square_millimetres = _require_finite_result(
         "converted area", area * area_factor
     )
+    if area_square_millimetres <= 0:
+        raise ValueError("converted area must be greater than zero")
+
     stress_megapascals = _require_finite_result(
         "calculated stress", force_newtons / area_square_millimetres
     )
@@ -94,6 +122,10 @@ def calculate_axial_stress(
             "id": CALCULATOR_ID,
             "name": CALCULATOR_NAME,
             "version": CALCULATOR_VERSION,
+            "category": CALCULATOR_CATEGORY,
+            "engineering_domain": ENGINEERING_DOMAIN,
+            "purpose": CALCULATOR_PURPOSE,
+            "reference_equation": GOVERNING_EQUATION,
         },
         "inputs": {
             "force": {"value": force, "unit": force_unit},
@@ -112,6 +144,8 @@ def calculate_axial_stress(
         },
         "assumptions": list(_ASSUMPTIONS),
         "warnings": [],
+        "limitations": list(_LIMITATIONS),
+        "references": list(_REFERENCES),
     }
 
 

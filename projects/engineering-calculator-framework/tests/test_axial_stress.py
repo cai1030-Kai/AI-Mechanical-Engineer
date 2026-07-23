@@ -1,5 +1,7 @@
 """Unit tests for the axial stress calculator."""
 
+import json
+
 import pytest
 
 from engineering_calculator.calculators.axial_stress import (
@@ -21,6 +23,13 @@ def test_calculates_normal_tensile_loading() -> None:
         "id": "stress.axial",
         "name": "Axial Stress Calculator",
         "version": "0.1.0",
+        "category": "Stress Analysis",
+        "engineering_domain": "Mechanics of Materials",
+        "purpose": (
+            "Calculate the signed average normal stress in a member subjected "
+            "to a concentric axial force"
+        ),
+        "reference_equation": "σ = F / A",
     }
     assert result["inputs"] == {
         "force": {"value": 10.0, "unit": "kN"},
@@ -33,6 +42,8 @@ def test_calculates_normal_tensile_loading() -> None:
     assert result["governing_equation"]["symbolic"] == "\u03c3 = F / A"
     assert result["assumptions"]
     assert result["warnings"] == []
+    assert result["limitations"]
+    assert result["references"]
 
 
 def test_preserves_compression_sign_convention() -> None:
@@ -226,3 +237,132 @@ def test_rejects_nonfinite_intermediate_results(
             area_unit=area_unit,
             output_unit=output_unit,
         )
+
+def test_canonical_result_contract() -> None:
+    result = calculate_axial_stress(10, "kN", 500, SQUARE_MILLIMETRES)
+
+    assert set(result) == {
+        "calculator",
+        "inputs",
+        "results",
+        "governing_equation",
+        "assumptions",
+        "warnings",
+        "limitations",
+        "references",
+    }
+    assert set(result["calculator"]) == {
+        "id",
+        "name",
+        "version",
+        "category",
+        "engineering_domain",
+        "purpose",
+        "reference_equation",
+    }
+    assert result["limitations"]
+    assert result["references"]
+    assert json.loads(json.dumps(result)) == result
+
+
+@pytest.mark.parametrize(
+    ("force_value", "force_unit"),
+    [
+        (1.0, "N"),
+        (0.001, "kN"),
+        (1.0 / 4.4482216152605, "lbf"),
+        (1.0 / 4_448.2216152605, "kip"),
+    ],
+)
+def test_each_accepted_force_unit_is_equivalent(
+    force_value: float,
+    force_unit: str,
+) -> None:
+    result = calculate_axial_stress(
+        force_value,
+        force_unit,
+        1,
+        SQUARE_MILLIMETRES,
+    )
+
+    assert result["results"]["axial_stress"]["value"] == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("area_value", "area_unit"),
+    [
+        (1.0, "mm\u00b2"),
+        (0.01, "cm\u00b2"),
+        (0.000001, "m\u00b2"),
+        (1.0 / 645.16, "in\u00b2"),
+    ],
+)
+def test_each_accepted_area_unit_is_equivalent(
+    area_value: float,
+    area_unit: str,
+) -> None:
+    result = calculate_axial_stress(1, "N", area_value, area_unit)
+
+    assert result["results"]["axial_stress"]["value"] == pytest.approx(1.0)
+
+
+def test_rejects_nonfinite_converted_area() -> None:
+    with pytest.raises(ValueError, match="converted area must be finite"):
+        calculate_axial_stress(1, "N", 1e308, "m\u00b2")
+
+
+@pytest.mark.parametrize(
+    ("unit_argument", "expected_message"),
+    [
+        ("force_unit", "force_unit must be a string"),
+        ("area_unit", "area_unit must be a string"),
+        ("output_unit", "output_unit must be a string"),
+    ],
+)
+def test_rejects_non_string_unit_types(
+    unit_argument: str,
+    expected_message: str,
+) -> None:
+    arguments = {
+        "force_value": 10,
+        "force_unit": "kN",
+        "area_value": 500,
+        "area_unit": SQUARE_MILLIMETRES,
+        "output_unit": "MPa",
+    }
+    arguments[unit_argument] = None
+
+    with pytest.raises(TypeError, match=expected_message):
+        calculate_axial_stress(**arguments)
+
+
+def test_rejects_missing_required_input() -> None:
+    with pytest.raises(TypeError, match="area_unit"):
+        calculate_axial_stress(
+            force_value=10,
+            force_unit="kN",
+            area_value=500,
+        )
+
+
+def test_substitution_preserves_traceable_precision() -> None:
+    result = calculate_axial_stress(1, "lbf", 1, SQUARE_MILLIMETRES)
+    converted_force = 4.4482216152605
+
+    assert result["governing_equation"]["substitution"] == (
+        f"σ = {converted_force:.17g} N / 1 mm²"
+    )
+
+
+def test_repeated_execution_is_deterministic() -> None:
+    arguments = {
+        "force_value": 10,
+        "force_unit": "kN",
+        "area_value": 500,
+        "area_unit": SQUARE_MILLIMETRES,
+        "output_unit": "MPa",
+    }
+
+    assert calculate_axial_stress(**arguments) == calculate_axial_stress(
+        **arguments
+    )

@@ -68,11 +68,13 @@ loading state.
 | Property | Requirement |
 | --- | --- |
 | Name | `force` |
-| Physical dimension | Force |
-| Required | Yes |
-| Accepted initial units | `N`, `kN`, `lbf`, `kip` |
+| Description | Resultant axial force acting perpendicular to the resisting cross-section |
+| Quantity type | Dimensional scalar: force |
+| Required | Required |
+| Accepted units | `N`, `kN`, `lbf`, `kip` |
+| Sign convention | Positive for tension, negative for compression, and zero for unloaded |
 | Valid values | Any finite real number, including zero |
-| Sign meaning | Positive for tension; negative for compression |
+| Default | None |
 
 The input must include an explicit unit. A unitless force must not be silently
 interpreted.
@@ -82,10 +84,13 @@ interpreted.
 | Property | Requirement |
 | --- | --- |
 | Name | `area` |
-| Physical dimension | Area |
-| Required | Yes |
-| Accepted initial units | `mm²`, `cm²`, `m²`, `in²` |
+| Description | Net cross-sectional area resisting the axial force |
+| Quantity type | Dimensional scalar: area |
+| Required | Required |
+| Accepted units | `mm²`, `cm²`, `m²`, `in²` |
+| Sign convention | Not applicable; area must be strictly positive |
 | Valid values | Any finite real number greater than zero |
+| Default | None |
 
 The user is responsible for supplying the net resisting area. If holes,
 threads, grooves, or other area reductions are relevant, the reduced area must
@@ -96,9 +101,12 @@ be calculated before calling this calculator.
 | Property | Requirement |
 | --- | --- |
 | Name | `output_unit` |
-| Physical dimension | Pressure or stress |
-| Required | No |
-| Accepted initial units | `Pa`, `kPa`, `MPa`, `GPa`, `psi`, `ksi` |
+| Description | Unit used to present the calculated axial stress |
+| Quantity type | Categorical unit selection: stress |
+| Required | Optional |
+| Accepted units | `Pa`, `kPa`, `MPa`, `GPa`, `psi`, `ksi` |
+| Sign convention | Not applicable |
+| Valid values | One of the accepted stress units |
 | Default | `MPa` |
 
 The requested output unit affects presentation only. It must not change the
@@ -110,12 +118,15 @@ The calculator must return:
 
 | Output | Definition |
 | --- | --- |
-| `axial_stress` | Signed average normal stress in the requested output unit |
-| `loading_state` | `tension`, `compression`, or `unloaded` |
-| `equation` | The governing equation `σ = F / A` |
+| `calculator` | Complete calculator identity and metadata |
 | `inputs` | Original force and area values with their units |
+| `results.axial_stress` | Signed average normal stress in the requested output unit |
+| `results.loading_state` | `tension`, `compression`, or `unloaded` |
+| `governing_equation` | Symbolic equation and substituted normalized values |
 | `assumptions` | Assumptions applied to the calculation |
 | `warnings` | Applicability or interpretation warnings, if any |
+| `limitations` | Calculation limitations that remain applicable to the result |
+| `references` | Engineering sources supporting the equation and verification |
 
 The numerical stress result must retain full calculation precision internally.
 Rounding is a presentation concern and must not be applied before the division
@@ -139,7 +150,11 @@ structure:
   "calculator": {
     "id": "stress.axial",
     "name": "Axial Stress Calculator",
-    "version": "0.1.0"
+    "version": "0.1.0",
+    "category": "Stress Analysis",
+    "engineering_domain": "Mechanics of Materials",
+    "purpose": "Calculate the signed average normal stress in a member subjected to a concentric axial force",
+    "reference_equation": "σ = F / A"
   },
   "inputs": {
     "force": {
@@ -167,13 +182,30 @@ structure:
     "The supplied area is the net area resisting the load.",
     "Stress is represented by its average value over the cross-section."
   ],
-  "warnings": []
+  "warnings": [],
+  "limitations": [
+    "The calculation does not account for bending caused by eccentric loading.",
+    "The calculation does not evaluate shear stress or torsional stress.",
+    "The calculation does not evaluate local stress concentrations.",
+    "The calculation does not evaluate local bearing, contact, or crushing stress.",
+    "The calculation does not evaluate nonuniform stress near load introduction points.",
+    "The calculation does not evaluate buckling under compression.",
+    "The calculation does not evaluate plastic or nonlinear material behavior.",
+    "The calculation assumes small deformation and unchanged cross-sectional area.",
+    "The calculation does not evaluate residual, thermal, dynamic, impact, or cyclic stress.",
+    "The calculation does not evaluate fatigue, fracture, creep, or stress relaxation.",
+    "The calculation does not evaluate material strength, allowable stress, or factor of safety.",
+    "The calculation does not establish design-code or regulatory compliance."
+  ],
+  "references": [
+    "R. C. Hibbeler, Mechanics of Materials, 10th Edition, normal stress under axial loading."
+  ]
 }
 ```
 
 ### 6.1 Schema rules
 
-- `calculator.id`, `calculator.name`, and `calculator.version` are required.
+- The `calculator` object must contain all metadata defined in Section 2.
 - `calculator.id` must equal `stress.axial` for this calculator.
 - Each dimensional input and result must store `value` and `unit` separately.
 - Input values and units must preserve the values supplied by the user.
@@ -186,6 +218,8 @@ structure:
   omitted.
 - `warnings` must be an array. A successful calculation with no warnings must
   return an empty array rather than omit the field.
+- `limitations` must contain the limitations documented in Section 9.
+- `references` must contain the engineering sources documented in Section 10.
 - The structure above defines successful calculation output only. Validation
   error output will be specified separately before CLI implementation.
 
@@ -290,7 +324,15 @@ The result is suitable for educational use and preliminary engineering checks.
 It does not replace detailed analysis, applicable standards, testing, or
 professional engineering review.
 
-## 10. Verified example calculation
+## 10. Engineering references
+
+- R. C. Hibbeler, *Mechanics of Materials*, 10th Edition, normal stress under
+  axial loading.
+
+The verified example below is independently checked by reverse calculation and
+unit identity in addition to the cited engineering reference.
+
+## 11. Verified example calculation
 
 ### Problem
 
@@ -340,7 +382,7 @@ F = 10 kN
 The reverse calculation reproduces the original applied force, and the unit
 identity `1 N/mm² = 1 MPa` confirms the reported stress unit.
 
-## 11. Design decisions
+## 12. Design decisions
 
 ### Signed stress instead of magnitude-only stress
 
