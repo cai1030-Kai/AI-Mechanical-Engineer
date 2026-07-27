@@ -5,7 +5,18 @@ import json
 from collections.abc import Sequence
 
 from engineering_calculator.calculators.axial_stress import calculate_axial_stress
+from engineering_calculator.calculators.beam_bending import calculate_beam_bending
 from engineering_calculator.calculators.shaft_torsion import calculate_shaft_torsion
+
+
+def _unit_parser(name: str, supported: tuple[str, ...]):
+    """Return an argparse unit parser with an ASCII-safe error message."""
+    def parse(value: str) -> str:
+        if value not in supported:
+            raise argparse.ArgumentTypeError(f"unsupported {name} unit")
+        return value
+
+    return parse
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +54,55 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("Pa", "kPa", "MPa", "GPa", "psi", "ksi"),
         default="MPa",
     )
+
+    bending = subparsers.add_parser(
+        "beam-bending", help="calculate linear-elastic beam bending stress"
+    )
+    bending.add_argument(
+        "--moment", type=float, required=True, help="signed bending moment"
+    )
+    bending.add_argument(
+        "--moment-unit",
+        type=_unit_parser(
+            "moment", ("N·mm", "N·m", "lbf·in", "lbf·ft")
+        ),
+        required=True,
+        metavar="UNIT",
+    )
+    bending.add_argument(
+        "--distance",
+        type=float,
+        required=True,
+        help="nonnegative distance from the neutral axis",
+    )
+    bending.add_argument(
+        "--distance-unit",
+        type=_unit_parser("distance", ("mm", "cm", "m", "in")),
+        required=True,
+        metavar="UNIT",
+    )
+    bending.add_argument(
+        "--second-moment",
+        type=float,
+        required=True,
+        help="positive section second moment of area",
+    )
+    bending.add_argument(
+        "--second-moment-unit",
+        type=_unit_parser(
+            "second-moment", ("mm^4", "cm^4", "m^4", "in^4")
+        ),
+        required=True,
+        metavar="UNIT",
+    )
+    bending.add_argument(
+        "--stress-unit",
+        type=_unit_parser(
+            "stress", ("Pa", "kPa", "MPa", "GPa", "psi", "ksi")
+        ),
+        required=True,
+        metavar="UNIT",
+    )
     return parser
 
 
@@ -56,13 +116,23 @@ def main(argv: Sequence[str] | None = None) -> None:
             result = calculate_axial_stress(
                 args.force, args.force_unit, args.area, args.area_unit, args.output_unit
             )
-        else:
+        elif args.calculator == "shaft-torsion":
             result = calculate_shaft_torsion(
                 args.torque,
                 args.torque_unit,
                 args.diameter,
                 args.diameter_unit,
                 args.output_unit,
+            )
+        else:
+            result = calculate_beam_bending(
+                args.moment,
+                args.moment_unit,
+                args.distance,
+                args.distance_unit,
+                args.second_moment,
+                args.second_moment_unit,
+                args.stress_unit,
             )
     except (TypeError, ValueError) as error:
         parser.error(str(error))
