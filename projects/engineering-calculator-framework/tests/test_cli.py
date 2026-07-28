@@ -173,3 +173,85 @@ def test_command_is_required(capsys) -> None:
         main([])
 
     assert "required" in capsys.readouterr().err
+
+def _euler_buckling_arguments() -> list[str]:
+    return [
+        "euler-buckling",
+        "--elastic-modulus",
+        "200",
+        "--elastic-modulus-unit",
+        "GPa",
+        "--second-moment",
+        "8000000",
+        "--second-moment-unit",
+        "mm^4",
+        "--length",
+        "3",
+        "--length-unit",
+        "m",
+        "--effective-length-factor",
+        "1",
+        "--output-unit",
+        "kN",
+    ]
+
+
+def test_euler_buckling_command_outputs_canonical_json(capsys) -> None:
+    main(_euler_buckling_arguments())
+
+    result = json.loads(capsys.readouterr().out)
+    assert set(result) == {
+        "calculator",
+        "inputs",
+        "results",
+        "governing_equation",
+        "assumptions",
+        "warnings",
+        "limitations",
+        "references",
+    }
+    assert result["calculator"]["id"] == "stability.euler_buckling"
+    assert result["results"]["critical_load"] == {
+        "value": pytest.approx(1754.596337971441),
+        "unit": "kN",
+    }
+    assert result["results"]["effective_length_mm"] == {
+        "value": 3000.0,
+        "unit": "mm",
+    }
+
+
+def test_euler_buckling_supports_mn_output(capsys) -> None:
+    arguments = _euler_buckling_arguments()
+    arguments[-1] = "MN"
+    main(arguments)
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["results"]["critical_load"] == {
+        "value": pytest.approx(1.754596337971441),
+        "unit": "MN",
+    }
+
+
+def test_euler_buckling_invalid_value_reports_cli_error(capsys) -> None:
+    arguments = _euler_buckling_arguments()
+    arguments[14] = "0"
+
+    with pytest.raises(SystemExit, match="2"):
+        main(arguments)
+
+    error = capsys.readouterr().err
+    assert "effective_length_factor must be greater than zero" in error
+    assert error.isascii()
+
+
+def test_euler_buckling_unsupported_unit_reports_cli_error(capsys) -> None:
+    arguments = _euler_buckling_arguments()
+    arguments[12] = "ft"
+
+    with pytest.raises(SystemExit, match="2"):
+        main(arguments)
+
+    error = capsys.readouterr().err
+    assert "unsupported length unit" in error
+    assert error.isascii()

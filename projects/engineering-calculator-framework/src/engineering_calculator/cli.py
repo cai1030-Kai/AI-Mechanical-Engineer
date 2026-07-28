@@ -6,6 +6,9 @@ from collections.abc import Sequence
 
 from engineering_calculator.calculators.axial_stress import calculate_axial_stress
 from engineering_calculator.calculators.beam_bending import calculate_beam_bending
+from engineering_calculator.calculators.euler_buckling import (
+    calculate_euler_buckling,
+)
 from engineering_calculator.calculators.shaft_torsion import calculate_shaft_torsion
 
 
@@ -103,6 +106,44 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         metavar="UNIT",
     )
+    buckling = subparsers.add_parser(
+        "euler-buckling", help="calculate ideal Euler column buckling load"
+    )
+    buckling.add_argument("--elastic-modulus", type=float, required=True)
+    buckling.add_argument(
+        "--elastic-modulus-unit",
+        type=_unit_parser(
+            "elastic-modulus", ("Pa", "kPa", "MPa", "GPa", "psi", "ksi")
+        ),
+        required=True,
+        metavar="UNIT",
+    )
+    buckling.add_argument("--second-moment", type=float, required=True)
+    buckling.add_argument(
+        "--second-moment-unit",
+        type=_unit_parser(
+            "second-moment", ("mm^4", "cm^4", "m^4", "in^4")
+        ),
+        required=True,
+        metavar="UNIT",
+    )
+    buckling.add_argument("--length", type=float, required=True)
+    buckling.add_argument(
+        "--length-unit",
+        type=_unit_parser("length", ("mm", "cm", "m", "in")),
+        required=True,
+        metavar="UNIT",
+    )
+    buckling.add_argument(
+        "--effective-length-factor", type=float, required=True
+    )
+    buckling.add_argument(
+        "--output-unit",
+        type=_unit_parser("output", ("N", "kN", "MN", "lbf", "kip")),
+        default="kN",
+        metavar="UNIT",
+    )
+
     return parser
 
 
@@ -124,7 +165,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args.diameter_unit,
                 args.output_unit,
             )
-        else:
+        elif args.calculator == "beam-bending":
             result = calculate_beam_bending(
                 args.moment,
                 args.moment_unit,
@@ -133,6 +174,17 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args.second_moment,
                 args.second_moment_unit,
                 args.stress_unit,
+            )
+        else:
+            result = calculate_euler_buckling(
+                args.elastic_modulus,
+                args.elastic_modulus_unit,
+                args.second_moment,
+                args.second_moment_unit,
+                args.length,
+                args.length_unit,
+                args.effective_length_factor,
+                args.output_unit,
             )
     except (TypeError, ValueError) as error:
         parser.error(str(error))

@@ -9,8 +9,8 @@ those specifications.
 
 ## Current framework scope
 
-Version 0.2 provides deterministic mechanics-of-materials calculations for
-simple stress-analysis cases. Each calculator validates explicit numeric values
+Version 0.3 provides deterministic mechanics-of-materials and structural-stability calculations for
+simple stress-analysis and ideal elastic-stability cases. Each calculator validates explicit numeric values
 and units, applies a documented governing equation, and returns the canonical
 JSON structure defined by [Calculator Contract v0.1](architecture/calculator-contract.md).
 The framework supports direct Python calls and command-line execution.
@@ -67,9 +67,25 @@ The framework supports direct Python calls and command-line execution.
 | Required warning | The supplied `I` and `y` must correspond to the same bending axis and section orientation; external tools may use different bending-moment sign conventions. |
 | Detailed specification | [Beam Bending Stress Calculator Specification](calculators/beam-bending.md) |
 
+### Euler Buckling Critical Load Calculator
+
+| Field | Summary |
+| --- | --- |
+| Calculator ID | `stability.euler_buckling` |
+| Name | Euler Buckling Critical Load Calculator |
+| Version | `0.1.0` |
+| Engineering domain | Structural Stability / Mechanics of Materials |
+| Purpose | Calculate the ideal elastic critical buckling load of a slender, straight column using Euler buckling theory. |
+| Inputs | Elastic modulus (`Pa`, `kPa`, `MPa`, `GPa`, `psi`, `ksi`); second moment of area (`mm^4`, `cm^4`, `m^4`, `in^4`); unsupported length (`mm`, `cm`, `m`, `in`); positive dimensionless effective length factor; optional force output unit. |
+| Outputs | Effective length in `mm`, canonical critical load in `N`, converted critical load (`N`, `kN`, `MN`, `lbf`, or `kip`), and buckling-axis traceability. |
+| Governing equations | `L_eff = K * L`; `P_cr = pi^2 * E * I / L_eff^2` |
+| Key assumptions | Straight slender prismatic column; homogeneous linearly elastic material; concentric compression; caller-supplied `I` and `K`; one specified principal buckling axis. |
+| Main limitations | Excludes yielding, inelastic or local buckling, torsional and flexural-torsional buckling, imperfections, eccentricity, combined loading, safety factors, and code compliance. |
+| CLI command | `engineering-calculator euler-buckling --elastic-modulus 200 --elastic-modulus-unit GPa --second-moment 8000000 --second-moment-unit "mm^4" --length 3 --length-unit m --effective-length-factor 1 --output-unit kN` |
+| Detailed specification | [Euler Buckling Critical Load Calculator Specification](calculators/euler-buckling.md) |
+
 ## Planned calculators
 
-The following calculators are planned and are not part of v0.2:
+The following calculator is planned and is not part of v0.3:
 
-- Euler buckling
-- Factor of safety
+- A tightly scoped factor-of-safety calculator
