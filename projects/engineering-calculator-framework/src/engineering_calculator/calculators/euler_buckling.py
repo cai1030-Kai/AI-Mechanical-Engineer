@@ -4,6 +4,12 @@ import math
 from numbers import Real
 from typing import Any
 
+from engineering_calculator.calculators._validation import (
+    checked_positive_power,
+    conversion_factor,
+    require_positive_finite,
+)
+
 CALCULATOR_ID = "stability.euler_buckling"
 CALCULATOR_NAME = "Euler Buckling Critical Load Calculator"
 CALCULATOR_VERSION = "0.1.0"
@@ -93,22 +99,22 @@ def calculate_euler_buckling(
     modulus_mpa = _checked_product(
         "converted elastic modulus",
         modulus,
-        _conversion("elastic_modulus_unit", elastic_modulus_unit, _MODULUS_TO_MEGAPASCALS),
+        conversion_factor("elastic_modulus_unit", elastic_modulus_unit, _MODULUS_TO_MEGAPASCALS),
     )
     second_moment_mm4 = _checked_product(
         "converted second moment of area",
         second_moment,
-        _conversion("second_moment_of_area_unit", second_moment_of_area_unit, _SECOND_MOMENT_TO_MM4),
+        conversion_factor("second_moment_of_area_unit", second_moment_of_area_unit, _SECOND_MOMENT_TO_MM4),
     )
     length_mm = _checked_product(
         "converted unsupported length",
         length,
-        _conversion("unsupported_length_unit", unsupported_length_unit, _LENGTH_TO_MM),
+        conversion_factor("unsupported_length_unit", unsupported_length_unit, _LENGTH_TO_MM),
     )
-    output_factor = _conversion("output_unit", output_unit, _NEWTONS_TO_OUTPUT)
+    output_factor = conversion_factor("output_unit", output_unit, _NEWTONS_TO_OUTPUT)
 
     effective_length_mm = _checked_product("effective length", factor, length_mm)
-    effective_length_squared = _checked_power(
+    effective_length_squared = checked_positive_power(
         "squared effective length", effective_length_mm, 2
     )
     flexural_rigidity = _checked_product(
@@ -179,37 +185,10 @@ def _positive_number(name: str, value: Real) -> float:
     return number
 
 
-def _conversion(name: str, unit: str, conversions: dict[str, float]) -> float:
-    if not isinstance(unit, str):
-        raise TypeError(f"{name} must be a string")
-    try:
-        return conversions[unit]
-    except KeyError:
-        supported_units = ", ".join(conversions)
-        raise ValueError(
-            f"unsupported {name} {unit!r}; supported units: {supported_units}"
-        ) from None
-
-
-def _positive_finite(name: str, value: float) -> float:
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be finite")
-    if value <= 0.0:
-        raise ValueError(f"{name} must be greater than zero")
-    return value
-
 
 def _checked_product(name: str, left: float, right: float) -> float:
-    return _positive_finite(name, left * right)
-
-
-def _checked_power(name: str, value: float, exponent: int) -> float:
-    try:
-        result = value**exponent
-    except OverflowError:
-        raise ValueError(f"{name} must be finite") from None
-    return _positive_finite(name, result)
+    return require_positive_finite(name, left * right)
 
 
 def _checked_division(name: str, numerator: float, denominator: float) -> float:
-    return _positive_finite(name, numerator / denominator)
+    return require_positive_finite(name, numerator / denominator)

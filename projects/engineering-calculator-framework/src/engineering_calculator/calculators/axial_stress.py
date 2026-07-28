@@ -4,6 +4,12 @@ import math
 from numbers import Real
 from typing import Any
 
+from engineering_calculator.calculators._validation import (
+    conversion_factor,
+    require_finite,
+    require_positive_finite,
+)
+
 CALCULATOR_ID = "stress.axial"
 CALCULATOR_NAME = "Axial Stress Calculator"
 CALCULATOR_VERSION = "0.1.0"
@@ -83,29 +89,27 @@ def calculate_axial_stress(
     if area <= 0:
         raise ValueError("area_value must be greater than zero")
 
-    force_factor = _conversion_factor(
+    force_factor = conversion_factor(
         "force_unit", force_unit, _FORCE_TO_NEWTONS
     )
-    area_factor = _conversion_factor(
+    area_factor = conversion_factor(
         "area_unit", area_unit, _AREA_TO_SQUARE_MILLIMETRES
     )
-    output_factor = _conversion_factor(
+    output_factor = conversion_factor(
         "output_unit", output_unit, _MEGAPASCALS_TO_OUTPUT
     )
 
-    force_newtons = _require_finite_result(
+    force_newtons = require_finite(
         "converted force", force * force_factor
     )
-    area_square_millimetres = _require_finite_result(
+    area_square_millimetres = require_positive_finite(
         "converted area", area * area_factor
     )
-    if area_square_millimetres <= 0:
-        raise ValueError("converted area must be greater than zero")
 
-    stress_megapascals = _require_finite_result(
+    stress_megapascals = require_finite(
         "calculated stress", force_newtons / area_square_millimetres
     )
-    stress = _require_finite_result(
+    stress = require_finite(
         "converted output stress", stress_megapascals * output_factor
     )
 
@@ -158,27 +162,3 @@ def _validate_number(name: str, value: Real) -> float:
         raise ValueError(f"{name} must be finite")
 
     return numeric_value
-
-
-def _require_finite_result(name: str, value: float) -> float:
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be finite")
-
-    return value
-
-
-def _conversion_factor(
-    name: str,
-    unit: str,
-    conversions: dict[str, float],
-) -> float:
-    if not isinstance(unit, str):
-        raise TypeError(f"{name} must be a string")
-
-    try:
-        return conversions[unit]
-    except KeyError:
-        supported_units = ", ".join(conversions)
-        raise ValueError(
-            f"unsupported {name} {unit!r}; supported units: {supported_units}"
-        ) from None

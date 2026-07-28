@@ -4,6 +4,13 @@ import math
 from numbers import Real
 from typing import Any
 
+from engineering_calculator.calculators._validation import (
+    checked_positive_power,
+    conversion_factor,
+    require_finite,
+    require_positive_finite,
+)
+
 CALCULATOR_ID = "stress.shaft_torsion"
 CALCULATOR_NAME = "Solid Circular Shaft Torsional Stress Calculator"
 CALCULATOR_VERSION = "0.1.0"
@@ -97,43 +104,43 @@ def calculate_shaft_torsion(
     if diameter <= 0:
         raise ValueError("diameter_value must be greater than zero")
 
-    torque_factor = _conversion_factor(
+    torque_factor = conversion_factor(
         "torque_unit", torque_unit, _TORQUE_TO_NEWTON_MILLIMETRES
     )
-    diameter_factor = _conversion_factor(
+    diameter_factor = conversion_factor(
         "diameter_unit", diameter_unit, _DIAMETER_TO_MILLIMETRES
     )
-    output_factor = _conversion_factor(
+    output_factor = conversion_factor(
         "output_unit", output_unit, _MEGAPASCALS_TO_OUTPUT
     )
 
-    torque_newton_millimetres = _require_finite(
+    torque_newton_millimetres = require_finite(
         "converted torque", torque * torque_factor
     )
-    diameter_millimetres = _require_positive_finite(
+    diameter_millimetres = require_positive_finite(
         "converted diameter", diameter * diameter_factor
     )
-    diameter_cubed = _positive_power(
+    diameter_cubed = checked_positive_power(
         "diameter cubed", diameter_millimetres, 3
     )
-    diameter_fourth = _positive_power(
+    diameter_fourth = checked_positive_power(
         "diameter fourth power", diameter_millimetres, 4
     )
 
-    polar_moment_mm4 = _require_positive_finite(
+    polar_moment_mm4 = require_positive_finite(
         "polar moment of inertia", math.pi * diameter_fourth / 32.0
     )
-    polar_moment_input_unit = _require_positive_finite(
+    polar_moment_input_unit = require_positive_finite(
         "converted polar moment of inertia",
         polar_moment_mm4 / diameter_factor**4,
     )
-    stress_megapascals = _require_finite(
+    stress_megapascals = require_finite(
         "calculated maximum shear stress",
         16.0
         * torque_newton_millimetres
         / (math.pi * diameter_cubed),
     )
-    stress = _require_finite(
+    stress = require_finite(
         "converted maximum shear stress",
         stress_megapascals * output_factor,
     )
@@ -187,45 +194,3 @@ def _validate_number(name: str, value: Real) -> float:
         raise ValueError(f"{name} must be finite")
 
     return numeric_value
-
-
-def _conversion_factor(
-    name: str,
-    unit: str,
-    conversions: dict[str, float],
-) -> float:
-    if not isinstance(unit, str):
-        raise TypeError(f"{name} must be a string")
-
-    try:
-        return conversions[unit]
-    except KeyError:
-        supported_units = ", ".join(conversions)
-        raise ValueError(
-            f"unsupported {name} {unit!r}; supported units: {supported_units}"
-        ) from None
-
-
-def _positive_power(name: str, value: float, exponent: int) -> float:
-    try:
-        result = value**exponent
-    except OverflowError:
-        raise ValueError(f"{name} must be finite") from None
-
-    return _require_positive_finite(name, result)
-
-
-def _require_finite(name: str, value: float) -> float:
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be finite")
-
-    return value
-
-
-def _require_positive_finite(name: str, value: float) -> float:
-    finite_value = _require_finite(name, value)
-    if finite_value <= 0:
-        raise ValueError(f"{name} must be greater than zero")
-
-    return finite_value
-

@@ -4,6 +4,12 @@ import math
 from numbers import Real
 from typing import Any
 
+from engineering_calculator.calculators._validation import (
+    conversion_factor,
+    require_finite,
+    require_positive_finite,
+)
+
 CALCULATOR_ID = "stress.beam_bending"
 CALCULATOR_NAME = "Beam Bending Stress Calculator"
 CALCULATOR_VERSION = "0.1.0"
@@ -114,37 +120,37 @@ def calculate_beam_bending(
     if second_moment <= 0:
         raise ValueError("second_moment_of_area_value must be greater than zero")
 
-    moment_factor = _conversion_factor(
+    moment_factor = conversion_factor(
         "bending_moment_unit",
         bending_moment_unit,
         _MOMENT_TO_NEWTON_MILLIMETRES,
     )
-    distance_factor = _conversion_factor(
+    distance_factor = conversion_factor(
         "distance_from_neutral_axis_unit",
         distance_from_neutral_axis_unit,
         _DISTANCE_TO_MILLIMETRES,
     )
-    second_moment_factor = _conversion_factor(
+    second_moment_factor = conversion_factor(
         "second_moment_of_area_unit",
         second_moment_of_area_unit,
         _SECOND_MOMENT_TO_MILLIMETRES_FOURTH,
     )
-    output_factor = _conversion_factor(
+    output_factor = conversion_factor(
         "output_unit", output_unit, _MEGAPASCALS_TO_OUTPUT
     )
 
-    moment_newton_millimetres = _require_finite(
+    moment_newton_millimetres = require_finite(
         "converted bending moment", bending_moment * moment_factor
     )
     distance_millimetres = _require_nonnegative_finite(
         "converted distance from neutral axis", distance * distance_factor
     )
-    second_moment_millimetres_fourth = _require_positive_finite(
+    second_moment_millimetres_fourth = require_positive_finite(
         "converted second moment of area",
         second_moment * second_moment_factor,
     )
 
-    numerator = _require_finite(
+    numerator = require_finite(
         "bending stress numerator",
         moment_newton_millimetres * distance_millimetres,
     )
@@ -155,14 +161,14 @@ def calculate_beam_bending(
     ):
         raise ValueError("bending stress numerator must not underflow to zero")
 
-    stress_megapascals = _require_finite(
+    stress_megapascals = require_finite(
         "calculated bending stress",
         numerator / second_moment_millimetres_fourth,
     )
     if numerator != 0.0 and stress_megapascals == 0.0:
         raise ValueError("calculated bending stress must not underflow to zero")
 
-    stress = _require_finite(
+    stress = require_finite(
         "converted bending stress", stress_megapascals * output_factor
     )
     if stress_megapascals != 0.0 and stress == 0.0:
@@ -236,41 +242,10 @@ def _validate_number(name: str, value: Real) -> float:
     return numeric_value
 
 
-def _conversion_factor(
-    name: str,
-    unit: str,
-    conversions: dict[str, float],
-) -> float:
-    if not isinstance(unit, str):
-        raise TypeError(f"{name} must be a string")
-
-    try:
-        return conversions[unit]
-    except KeyError:
-        supported_units = ", ".join(conversions)
-        raise ValueError(
-            f"unsupported {name} {unit!r}; supported units: {supported_units}"
-        ) from None
-
-
-def _require_finite(name: str, value: float) -> float:
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be finite")
-
-    return value
-
 
 def _require_nonnegative_finite(name: str, value: float) -> float:
-    finite_value = _require_finite(name, value)
+    finite_value = require_finite(name, value)
     if finite_value < 0.0:
         raise ValueError(f"{name} must be greater than or equal to zero")
-
-    return finite_value
-
-
-def _require_positive_finite(name: str, value: float) -> float:
-    finite_value = _require_finite(name, value)
-    if finite_value <= 0.0:
-        raise ValueError(f"{name} must be greater than zero")
 
     return finite_value
