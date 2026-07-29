@@ -221,6 +221,25 @@ def test_rejects_nonfinite_inputs(
 
 
 @pytest.mark.parametrize("input_name", ["torque_value", "diameter_value"])
+def test_rejects_oversized_integer_inputs(input_name: str) -> None:
+    arguments = {
+        "torque_value": 1_000,
+        "torque_unit": "N\u00b7mm",
+        "diameter_value": 10,
+        "diameter_unit": "mm",
+    }
+    arguments[input_name] = 10**400
+
+    with pytest.raises(
+        ValueError,
+        match=rf"^{input_name} must be representable as a finite float$",
+    ) as exc_info:
+        calculate_shaft_torsion(**arguments)
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+
+
+@pytest.mark.parametrize("input_name", ["torque_value", "diameter_value"])
 @pytest.mark.parametrize("invalid_value", ["not-a-number", None, True])
 def test_rejects_non_numeric_inputs(
     input_name: str,

@@ -189,6 +189,25 @@ def test_rejects_nonfinite_inputs(
 
 
 @pytest.mark.parametrize("input_name", ["force_value", "area_value"])
+def test_rejects_oversized_integer_inputs(input_name: str) -> None:
+    arguments = {
+        "force_value": 10,
+        "force_unit": "kN",
+        "area_value": 500,
+        "area_unit": SQUARE_MILLIMETRES,
+    }
+    arguments[input_name] = 10**400
+
+    with pytest.raises(
+        ValueError,
+        match=rf"^{input_name} must be representable as a finite float$",
+    ) as exc_info:
+        calculate_axial_stress(**arguments)
+
+    assert isinstance(exc_info.value.__cause__, OverflowError)
+
+
+@pytest.mark.parametrize("input_name", ["force_value", "area_value"])
 @pytest.mark.parametrize("invalid_value", ["not-a-number", None])
 def test_rejects_non_numeric_inputs(
     input_name: str,

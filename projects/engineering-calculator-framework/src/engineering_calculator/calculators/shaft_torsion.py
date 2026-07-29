@@ -189,7 +189,13 @@ def _validate_number(name: str, value: Real) -> float:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise TypeError(f"{name} must be a real number")
 
-    numeric_value = float(value)
+    try:
+        numeric_value = float(value)
+    except OverflowError as exc:
+        raise ValueError(
+            f"{name} must be representable as a finite float"
+        ) from exc
+
     if not math.isfinite(numeric_value):
         raise ValueError(f"{name} must be finite")
 
