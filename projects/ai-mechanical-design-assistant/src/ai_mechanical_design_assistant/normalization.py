@@ -32,19 +32,25 @@ class Normalizer:
         }
     )
 
-    def normalize(self, request: Mapping[str, Any]) -> dict[str, Any]:
-        """Return a semantics-preserving copy in canonical top-level order."""
-        normalized: dict[str, Any] = {}
+    def normalize(self, request: Any) -> Any:
+        """Return a semantics-preserving copy with known fields canonically ordered."""
+        if not isinstance(request, Mapping):
+            return deepcopy(request)
 
-        for field in self._REQUIRED_FIELDS:
+        normalized: dict[str, Any] = {}
+        known_fields = self._REQUIRED_FIELDS + self._OPTIONAL_FIELDS
+
+        for field in known_fields:
+            if field not in request:
+                continue
             value = request[field]
             if field in self._TRIMMED_STRING_FIELDS and isinstance(value, str):
                 normalized[field] = value.strip()
             else:
                 normalized[field] = deepcopy(value)
 
-        for field in self._OPTIONAL_FIELDS:
-            if field in request:
+        for field in request:
+            if field not in known_fields:
                 normalized[field] = deepcopy(request[field])
 
         return normalized

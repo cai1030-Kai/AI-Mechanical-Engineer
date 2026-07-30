@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from ai_mechanical_design_assistant.normalization import Normalizer
+from ai_mechanical_design_assistant.validation import Validator
 
 
 def make_request() -> dict[str, object]:
@@ -141,3 +142,103 @@ def test_mutable_non_string_trimmed_field_is_deep_copied() -> None:
     result["request_text"][1]["value"] = "changed"  # type: ignore[index]
 
     assert request["request_text"][1]["value"] == " unchanged "  # type: ignore[index]
+
+
+def test_non_mapping_input_is_returned_as_an_equal_deep_copy() -> None:
+    request = ["raw", {"nested": [1, 2]}]
+
+    result = Normalizer().normalize(request)
+
+    assert result == request
+    assert result is not request
+    assert result[1] is not request[1]
+    assert result[1]["nested"] is not request[1]["nested"]
+
+
+def test_missing_required_fields_do_not_crash_and_known_fields_are_ordered() -> None:
+    request = {
+        "requested_checks": [],
+        "request_text": " Review ",
+        "contract_version": " 0.1 ",
+    }
+
+    result = Normalizer().normalize(request)
+
+    assert list(result) == ["contract_version", "request_text", "requested_checks"]
+    assert result["contract_version"] == "0.1"
+    assert result["request_text"] == "Review"
+
+
+def test_unknown_top_level_fields_are_preserved_after_known_fields() -> None:
+    request = {
+        "extension": {"values": [1, 2]},
+        "request_text": "Review",
+        "contract_version": "0.1",
+        "another_extension": "unchanged",
+    }
+
+    result = Normalizer().normalize(request)
+
+    assert list(result) == [
+        "contract_version",
+        "request_text",
+        "extension",
+        "another_extension",
+    ]
+    assert result["extension"] == {"values": [1, 2]}
+    assert result["extension"] is not request["extension"]
+
+
+def test_preserved_unknown_fields_remain_visible_to_validator() -> None:
+    request = make_request()
+    request["unexpected"] = {"raw": True}
+
+    result = Normalizer().normalize(request)
+    validation = Validator().validate(result)
+
+    assert any(
+        issue.path == "/unexpected" and issue.code == "UNKNOWN_FIELD"
+        for issue in validation.issues
+    )
+
+
+def test_invalid_known_field_values_pass_through_unchanged() -> None:
+    request = {
+        "contract_version": {"invalid": ["value"]},
+        "component": None,
+        "provided_data": False,
+        "requested_checks": 42,
+    }
+
+    result = Normalizer().normalize(request)
+
+    assert result == request
+    assert result["contract_version"] is not request["contract_version"]
+
+
+def test_unknown_nested_values_are_deep_copied_without_mutating_input() -> None:
+    request = make_request()
+    request["extension"] = {"nested": [" original "]}
+    before = deepcopy(request)
+
+    result = Normalizer().normalize(request)
+    result["extension"]["nested"].append("changed")  # type: ignore[index]
+
+    assert request == before
+    assert result["extension"] is not request["extension"]
+
+
+def test_normalization_with_missing_and_unknown_fields_is_idempotent() -> None:
+    normalizer = Normalizer()
+    request = {
+        "unknown": {"nested": [1]},
+        "request_text": " Review ",
+        "contract_version": " 0.1 ",
+    }
+
+    once = normalizer.normalize(request)
+    twice = normalizer.normalize(once)
+
+    assert twice == once
+    assert list(twice) == list(once)
+    assert twice["unknown"] is not once["unknown"]
