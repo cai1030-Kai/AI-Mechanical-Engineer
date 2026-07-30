@@ -2,6 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from ai_mechanical_design_assistant.review_finding import ReviewFinding
 from ai_mechanical_design_assistant.review_result import ReviewResult
 
 
@@ -12,11 +13,24 @@ def test_default_construction() -> None:
     assert result.findings == ()
 
 
-def test_custom_status() -> None:
-    result = ReviewResult(status="CUSTOM", findings=("finding",))
+@pytest.mark.parametrize("status", ["REVIEWED", "REVIEWED_WITH_FINDINGS"])
+def test_custom_supported_status(status: str) -> None:
+    result = ReviewResult(status=status)
 
-    assert result.status == "CUSTOM"
-    assert result.findings == ("finding",)
+    assert result.status == status
+
+
+def test_findings_accept_tuple_of_review_findings() -> None:
+    finding = ReviewFinding(
+        rule_id="test-rule",
+        code="TEST_CODE",
+        severity="informational",
+        message="Test finding.",
+    )
+
+    result = ReviewResult(findings=(finding,))
+
+    assert result.findings == (finding,)
 
 
 def test_fields_are_immutable() -> None:
@@ -26,7 +40,7 @@ def test_fields_are_immutable() -> None:
         result.status = "CHANGED"  # type: ignore[misc]
 
     with pytest.raises(FrozenInstanceError):
-        result.findings = ("changed",)  # type: ignore[misc]
+        result.findings = ()  # type: ignore[misc]
 
 
 def test_slots_prevent_dynamic_attributes() -> None:

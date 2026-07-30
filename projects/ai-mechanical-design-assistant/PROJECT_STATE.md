@@ -2,9 +2,7 @@
 
 ## Current project status
 
-Current Milestone: Milestone 4 Complete
-
-Next Milestone: Milestone 5 Architecture Design
+Current Milestone: Milestone 5 Implemented — Awaiting Architecture Review
 
 This document is the canonical record of the current frozen architecture and
 completed milestones for AI Mechanical Design Assistant.
@@ -22,6 +20,10 @@ ReviewRequest
     ↓
 ReviewEngine
     ↓
+ordered Review Rules
+    ↓
+ReviewFinding tuple
+    ↓
 ReviewResult
     ↓
 Future Engineering Report
@@ -29,7 +31,9 @@ Future Engineering Report
 
 Normalization runs before validation. A `ReviewRequest` is constructed only
 from a mapping that has already been normalized and successfully validated.
-The `ReviewEngine` receives a `ReviewRequest` and produces a `ReviewResult`.
+The `ReviewEngine` receives a `ReviewRequest`, executes its configured
+`ReviewRule` objects in order, aggregates their `ReviewFinding` tuples in
+execution order, and produces a `ReviewResult`.
 
 ## Completed milestones
 
@@ -84,6 +88,18 @@ ReviewResult(
 
 This behavior is intentional. No engineering intelligence is implemented.
 
+## Milestone 5 implementation status
+
+### Milestone 5 — Deterministic Rule Execution Foundation v0.1
+
+Status: Implemented — Awaiting Architecture Review
+
+Established the structural `ReviewRule` contract, immutable `ReviewFinding`
+domain object, ordered rule execution, deterministic finding aggregation, and
+rule-execution status semantics.
+
+No concrete engineering rules exist.
+
 ## Current domain objects
 
 ### ReviewRequest
@@ -95,6 +111,13 @@ It preserves all contract field values and optional-field presence. Its nested
 built-in containers are recursively frozen. It does not normalize, validate,
 repair, or infer meaning.
 
+### ReviewFinding
+
+`ReviewFinding` is an immutable finding returned by a `ReviewRule`.
+
+It preserves the rule identifier, code, severity, and message exactly. It does
+not normalize or validate those values and contains no business behavior.
+
 ### ReviewResult
 
 `ReviewResult` is the immutable output of the `ReviewEngine`.
@@ -102,9 +125,10 @@ repair, or infer meaning.
 It contains:
 
 - `status: str`, defaulting to `"NOT_REVIEWED"`;
-- `findings: tuple`, defaulting to `()`.
+- `findings: tuple[ReviewFinding, ...]`, defaulting to `()`.
 
-It contains no business logic.
+It supports the literal status semantics `NOT_REVIEWED`, `REVIEWED`, and
+`REVIEWED_WITH_FINDINGS`. It contains no business logic or status validation.
 
 ## Current responsibilities
 
@@ -128,17 +152,32 @@ It contains no business logic.
 - Preserves contract values and optional-field presence.
 - Provides deep immutability for nested built-in containers.
 
+### ReviewRule
+
+- Defines the runtime-checkable structural rule boundary.
+- Exposes a `rule_id`.
+- Evaluates one `ReviewRequest` and returns a tuple of `ReviewFinding` objects.
+- Defines no implementation behavior, priority, registry, or lifecycle.
+
 ### ReviewEngine
 
 - Receives a `ReviewRequest`.
-- Produces a deterministic `ReviewResult`.
+- Executes its explicitly configured immutable rule tuple in supplied order.
+- Executes each rule exactly once unless a rule raises an exception.
+- Aggregates findings in rule order and then each rule's finding order.
+- Enforces only the rule output container and element types.
+- Allows rule exceptions to propagate unchanged and stops execution.
+- Derives the deterministic `ReviewResult` status from rule execution.
 - Has no hidden mutable state.
 - Does not mutate its input.
 
 ### ReviewResult
 
 - Represents the immutable result produced by the `ReviewEngine`.
-- Currently reports only the intentional `NOT_REVIEWED` foundation state.
+- Contains an immutable tuple of `ReviewFinding` objects.
+- Reports `NOT_REVIEWED` when no rules execute.
+- Reports `REVIEWED` when rules execute without findings.
+- Reports `REVIEWED_WITH_FINDINGS` when rules produce findings.
 
 ## Current exclusions
 
@@ -146,7 +185,6 @@ The current architecture does not include:
 
 - engineering intelligence;
 - engineering calculations;
-- engineering rules;
 - engineering standards;
 - LLMs or prompts;
 - report generation;
@@ -160,23 +198,8 @@ The current architecture does not include:
 
 The `ReviewEngine` does not perform normalization or validation.
 
-## Next milestone
+## Current rule-library exclusions
 
-### Milestone 5 — Engineering Rule Library
-
-Goal:
-
-Introduce deterministic engineering rule execution while preserving
-`ReviewEngine` orchestration boundaries.
-
-Explicitly excluded:
-
-- engineering calculators;
-- standards library;
-- LLM reasoning;
-- report generation;
-- plugin system;
-- dependency injection framework.
-
-Milestone 5 implementation has not begun. Its implementation architecture is
-not defined in this document.
+No concrete engineering rules exist. Engineering calculators, standards, LLMs,
+reports, registries, plugins, priorities, and nested engineering schemas remain
+excluded.
