@@ -3,6 +3,7 @@ from types import MappingProxyType
 
 import pytest
 
+from ai_mechanical_design_assistant.component import Component
 from ai_mechanical_design_assistant.review_request import ReviewRequest
 
 
@@ -179,3 +180,87 @@ def test_equivalent_requests_are_equal() -> None:
     second = ReviewRequest.from_validated_mapping(make_complete_request())
 
     assert first == second
+
+
+
+def make_v02_request() -> dict[str, object]:
+    return {
+        "contract_version": "0.2",
+        "request_id": "component-review_002",
+        "review_scope": "preliminary",
+        "request_text": "Review this component.",
+        "component": {
+            "component_id": "shaft-1",
+            "name": "  Drive Shaft  ",
+            "component_type": " shaft ",
+            "properties": {"geometry": {"diameters": [30, 35]}},
+        },
+        "provided_data": [],
+        "requested_checks": [],
+    }
+
+
+def test_v02_component_becomes_component_domain_model() -> None:
+    model = ReviewRequest.from_validated_mapping(make_v02_request())
+
+    assert isinstance(model.component, Component)
+    assert model.component.component_id == "shaft-1"
+    assert model.component.name == "  Drive Shaft  "
+
+
+def test_v01_component_remains_recursively_frozen_arbitrary_value() -> None:
+    request = make_complete_request()
+    model = ReviewRequest.from_validated_mapping(request)
+
+    assert isinstance(model.component, MappingProxyType)
+    assert model.component["details"]["finishes"] == ("machined", "ground")  # type: ignore[index]
+
+
+def test_direct_constructor_performs_no_v02_validation() -> None:
+    model = ReviewRequest(
+        contract_version="0.2",
+        request_id="direct-1",
+        review_scope="preliminary",
+        request_text="Direct construction.",
+        component=None,
+        provided_data="arbitrary",
+        requested_checks=42,
+    )
+
+    assert model.component is None
+
+
+def test_malformed_v02_component_helper_raises_normal_construction_error() -> None:
+    request = make_v02_request()
+    del request["component"]["component_id"]  # type: ignore[index]
+
+    with pytest.raises(KeyError):
+        ReviewRequest.from_validated_mapping(request)
+
+
+def test_v02_request_is_deeply_immutable_and_source_independent() -> None:
+    request = make_v02_request()
+    model = ReviewRequest.from_validated_mapping(request)
+
+    request["component"]["properties"]["geometry"]["diameters"].append(40)  # type: ignore[index,union-attr]
+
+    assert model.component.properties["geometry"]["diameters"] == (30, 35)  # type: ignore[union-attr,index]
+    with pytest.raises(TypeError):
+        model.component.properties["new"] = True  # type: ignore[union-attr,index]
+
+
+def test_equivalent_v02_mappings_produce_equal_review_requests() -> None:
+    assert ReviewRequest.from_validated_mapping(
+        make_v02_request()
+    ) == ReviewRequest.from_validated_mapping(make_v02_request())
+
+
+def test_v02_optional_field_presence_behavior_is_unchanged() -> None:
+    request = make_v02_request()
+    request["constraints"] = None
+
+    model = ReviewRequest.from_validated_mapping(request)
+
+    assert model.has_constraints
+    assert model.constraints is None
+    assert not model.has_references

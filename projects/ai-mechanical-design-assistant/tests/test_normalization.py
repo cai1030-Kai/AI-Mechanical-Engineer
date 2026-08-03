@@ -242,3 +242,57 @@ def test_normalization_with_missing_and_unknown_fields_is_idempotent() -> None:
     assert twice == once
     assert list(twice) == list(once)
     assert twice["unknown"] is not once["unknown"]
+
+
+def make_v02_request() -> dict[str, object]:
+    return {
+        "contract_version": " 0.2 ",
+        "request_id": " component-review_002 ",
+        "review_scope": " preliminary ",
+        "request_text": " Review component. ",
+        "component": {
+            "component_id": " component-1 ",
+            "name": "  Drive Shaft  ",
+            "component_type": " Shaft ",
+            "properties": {"nested": [1, {"value": " unchanged "}]},
+        },
+        "provided_data": [],
+        "requested_checks": [],
+    }
+
+
+def test_v02_nested_component_strings_are_not_trimmed() -> None:
+    result = Normalizer().normalize(make_v02_request())
+
+    assert result["contract_version"] == "0.2"
+    assert result["component"]["component_id"] == " component-1 "
+    assert result["component"]["name"] == "  Drive Shaft  "
+    assert result["component"]["component_type"] == " Shaft "
+
+
+def test_v02_nested_component_key_order_is_preserved() -> None:
+    request = make_v02_request()
+
+    result = Normalizer().normalize(request)
+
+    assert list(result["component"]) == list(request["component"])
+
+
+def test_v02_nested_component_mutable_values_are_deep_copied() -> None:
+    request = make_v02_request()
+    result = Normalizer().normalize(request)
+
+    result["component"]["properties"]["nested"].append(2)  # type: ignore[index,union-attr]
+
+    assert request["component"]["properties"]["nested"] == [  # type: ignore[index]
+        1,
+        {"value": " unchanged "},
+    ]
+
+
+def test_normalization_is_idempotent_for_v02_input() -> None:
+    normalizer = Normalizer()
+    once = normalizer.normalize(make_v02_request())
+
+    assert normalizer.normalize(once) == once
+    assert list(normalizer.normalize(once)["component"]) == list(once["component"])

@@ -2,7 +2,7 @@
 
 ## Current project status
 
-Current Milestone: Milestone 5 Implemented — Awaiting Architecture Review
+Current Milestone: Milestone 6 Implemented — Awaiting Architecture Review
 
 This document is the canonical record of the current frozen architecture and
 completed milestones for AI Mechanical Design Assistant.
@@ -92,7 +92,7 @@ This behavior is intentional. No engineering intelligence is implemented.
 
 ### Milestone 5 — Deterministic Rule Execution Foundation v0.1
 
-Status: Implemented — Awaiting Architecture Review
+Status: Complete
 
 Established the structural `ReviewRule` contract, immutable `ReviewFinding`
 domain object, ordered rule execution, deterministic finding aggregation, and
@@ -100,14 +100,52 @@ rule-execution status semantics.
 
 No concrete engineering rules exist.
 
+## Milestone 6 implementation status
+
+### Milestone 6 — Engineering Component Contract v0.2
+
+Status: Implemented — Awaiting Architecture Review
+
+Engineering Review Contract v0.1 remains unchanged and backward compatible.
+Its `component` value remains arbitrary and receives no nested validation.
+
+Engineering Review Contract v0.2 is newly supported with the same top-level
+request shape. For v0.2 only, `component` is validated with these required
+fields in frozen order:
+
+- `component_id`;
+- `name`;
+- `component_type`;
+- `properties`.
+
+`properties` remains an opaque mapping. Unknown keys are allowed inside it, and
+no engineering semantics are validated or inferred.
+
+`Component` is an immutable domain object constructed from an already validated
+v0.2 component mapping. `ReviewRequest` preserves its version-specific behavior:
+v0.1 component values remain arbitrary and recursively frozen, while valid v0.2
+component mappings become `Component` objects.
+
+No concrete rules, engineering calculations, unit system, standards,
+serialization, LLM, prompts, or report generation were introduced.
+
 ## Current domain objects
+
+### Component
+
+`Component` is the immutable representation of an already validated Contract
+v0.2 component. It preserves `component_id`, `name`, `component_type`, and
+`properties` exactly and recursively freezes `properties`. It does not
+normalize, validate, repair, serialize, or infer engineering meaning.
 
 ### ReviewRequest
 
 `ReviewRequest` is an immutable representation of an already normalized and
-successfully validated Engineering Review Contract v0.1 request.
+successfully validated Engineering Review Contract v0.1 or v0.2 request.
 
-It preserves all contract field values and optional-field presence. Its nested
+For Contract v0.1, its component remains arbitrary. For Contract v0.2, its
+component is an immutable `Component`. It preserves all contract field values
+and optional-field presence. Its nested
 built-in containers are recursively frozen. It does not normalize, validate,
 repair, or infer meaning.
 
@@ -142,9 +180,18 @@ It supports the literal status semantics `NOT_REVIEWED`, `REVIEWED`, and
 
 ### Validator
 
-- Owns validation of Engineering Review Contract v0.1.
+- Owns validation of Engineering Review Contracts v0.1 and v0.2.
+- Preserves v0.1 top-level-only validation behavior.
+- Validates only the nested component contract for v0.2.
 - Reports validation issues deterministically.
 - Does not normalize input.
+
+### Component
+
+`Component` is the immutable representation of an already validated Contract
+v0.2 component. It preserves `component_id`, `name`, `component_type`, and
+`properties` exactly and recursively freezes `properties`. It does not
+normalize, validate, repair, serialize, or infer engineering meaning.
 
 ### ReviewRequest
 
@@ -201,5 +248,5 @@ The `ReviewEngine` does not perform normalization or validation.
 ## Current rule-library exclusions
 
 No concrete engineering rules exist. Engineering calculators, standards, LLMs,
-reports, registries, plugins, priorities, and nested engineering schemas remain
-excluded.
+reports, registries, plugins, priorities, and additional nested engineering
+schemas remain excluded.

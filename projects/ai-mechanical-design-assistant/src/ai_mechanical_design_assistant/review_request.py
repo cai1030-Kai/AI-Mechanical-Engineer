@@ -1,35 +1,13 @@
 """Immutable domain representation of a validated engineering review request."""
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass
-from types import MappingProxyType
-from typing import Any
+
+from ai_mechanical_design_assistant._freezing import freeze_value
+from ai_mechanical_design_assistant.component import Component
 
 
 _ABSENT = object()
-
-
-def _freeze_value(value: Any) -> Any:
-    """Return a recursively frozen copy of a value."""
-    if value is _ABSENT:
-        return value
-    if isinstance(value, Mapping):
-        return MappingProxyType({
-            key: _freeze_value(nested_value)
-            for key, nested_value in value.items()
-        })
-    if isinstance(value, list):
-        return tuple(_freeze_value(item) for item in value)
-    if isinstance(value, tuple):
-        return tuple(_freeze_value(item) for item in value)
-    if isinstance(value, set):
-        return frozenset(_freeze_value(item) for item in value)
-    if isinstance(value, frozenset):
-        return frozenset(_freeze_value(item) for item in value)
-    if isinstance(value, bytearray):
-        return bytes(value)
-    return deepcopy(value)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -48,20 +26,21 @@ class ReviewRequest:
 
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "contract_version", _freeze_value(self.contract_version)
+            self, "contract_version", freeze_value(self.contract_version)
         )
-        object.__setattr__(self, "request_id", _freeze_value(self.request_id))
-        object.__setattr__(self, "review_scope", _freeze_value(self.review_scope))
-        object.__setattr__(self, "request_text", _freeze_value(self.request_text))
-        object.__setattr__(self, "component", _freeze_value(self.component))
+        object.__setattr__(self, "request_id", freeze_value(self.request_id))
+        object.__setattr__(self, "review_scope", freeze_value(self.review_scope))
+        object.__setattr__(self, "request_text", freeze_value(self.request_text))
+        if not isinstance(self.component, Component):
+            object.__setattr__(self, "component", freeze_value(self.component))
+        object.__setattr__(self, "provided_data", freeze_value(self.provided_data))
         object.__setattr__(
-            self, "provided_data", _freeze_value(self.provided_data)
+            self, "requested_checks", freeze_value(self.requested_checks)
         )
-        object.__setattr__(
-            self, "requested_checks", _freeze_value(self.requested_checks)
-        )
-        object.__setattr__(self, "constraints", _freeze_value(self.constraints))
-        object.__setattr__(self, "references", _freeze_value(self.references))
+        if self.constraints is not _ABSENT:
+            object.__setattr__(self, "constraints", freeze_value(self.constraints))
+        if self.references is not _ABSENT:
+            object.__setattr__(self, "references", freeze_value(self.references))
 
     @property
     def has_constraints(self) -> bool:
@@ -83,12 +62,16 @@ class ReviewRequest:
             field: request[field] if field in request else _ABSENT
             for field in ("constraints", "references")
         }
+        component = request["component"]
+        if request["contract_version"] == "0.2":
+            component = Component.from_validated_mapping(component)  # type: ignore[arg-type]
+
         return cls(
             contract_version=request["contract_version"],
             request_id=request["request_id"],
             review_scope=request["review_scope"],
             request_text=request["request_text"],
-            component=request["component"],
+            component=component,
             provided_data=request["provided_data"],
             requested_checks=request["requested_checks"],
             **optional_fields,

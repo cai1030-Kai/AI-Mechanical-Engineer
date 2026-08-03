@@ -52,7 +52,6 @@ def test_unknown_field_paths_use_rfc_6901_escaping(valid_request: dict[str, obje
 
 
 @pytest.mark.parametrize(("field", "value", "expected_code"), [
-    ("contract_version", "0.2", "INVALID_VALUE"),
     ("contract_version", 0.1, "INVALID_TYPE"),
     ("review_scope", "design", "INVALID_VALUE"),
     ("review_scope", None, "INVALID_TYPE"),
@@ -108,3 +107,166 @@ def test_invalid_type_received_value_is_only_the_type_name(valid_request: dict[s
 def test_long_invalid_string_received_value_is_not_exposed(valid_request: dict[str, object]) -> None:
     valid_request["request_id"] = "invalid " + ("x" * 1_000)
     assert Validator().validate(valid_request).issues[0].received == "str"
+
+
+def make_v02_request() -> dict[str, object]:
+    return {
+        "contract_version": "0.2",
+        "request_id": "shaft-review_002",
+        "review_scope": "preliminary",
+        "request_text": "Review this component.",
+        "component": {
+            "component_id": "shaft-1",
+            "name": "Drive Shaft",
+            "component_type": "shaft",
+            "properties": {},
+        },
+        "provided_data": [],
+        "requested_checks": [],
+    }
+
+
+def test_v01_arbitrary_nested_values_remain_valid() -> None:
+    request = {
+        "contract_version": "0.1",
+        "request_id": "legacy-1",
+        "review_scope": "preliminary",
+        "request_text": "Legacy request.",
+        "component": None,
+        "provided_data": "not validated",
+        "requested_checks": 42,
+    }
+
+    assert Validator().validate(request).is_valid
+    request["component"] = {"arbitrary": {"nested": "value"}}
+    assert Validator().validate(request).is_valid
+
+
+def test_v02_is_accepted_and_unknown_versions_remain_invalid() -> None:
+    assert Validator().validate(make_v02_request()).is_valid
+
+    request = make_v02_request()
+    request["contract_version"] = "9.9"
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        ("/contract_version", "INVALID_VALUE")
+    ]
+
+
+@pytest.mark.parametrize("version", ["0.1", "9.9", None])
+def test_component_validation_runs_only_for_exact_v02(version: object) -> None:
+    request = make_v02_request()
+    request["contract_version"] = version
+    request["component"] = None
+
+    issues = Validator().validate(request).issues
+
+    assert not any(issue.path.startswith("/component") for issue in issues)
+
+
+def test_v02_non_mapping_component_produces_only_component_type_issue() -> None:
+    request = make_v02_request()
+    request["component"] = None
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        ("/component", "INVALID_TYPE")
+    ]
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["component_id", "name", "component_type", "properties"],
+)
+def test_each_missing_component_field_is_reported(field: str) -> None:
+    request = make_v02_request()
+    del request["component"][field]  # type: ignore[index]
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        (f"/component/{field}", "REQUIRED_FIELD_MISSING")
+    ]
+
+
+def test_multiple_missing_component_fields_are_collected_deterministically() -> None:
+    request = make_v02_request()
+    request["component"] = {}
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        ("/component/component_id", "REQUIRED_FIELD_MISSING"),
+        ("/component/component_type", "REQUIRED_FIELD_MISSING"),
+        ("/component/name", "REQUIRED_FIELD_MISSING"),
+        ("/component/properties", "REQUIRED_FIELD_MISSING"),
+    ]
+
+
+def test_unknown_component_field_is_rejected_with_pointer_escaping() -> None:
+    request = make_v02_request()
+    request["component"]["unexpected~/field"] = True  # type: ignore[index]
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        ("/component/unexpected~0~1field", "UNKNOWN_FIELD")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_code"),
+    [
+        ("component_id", 1, "INVALID_TYPE"),
+        ("component_id", "invalid id", "INVALID_FORMAT"),
+        ("name", 1, "INVALID_TYPE"),
+        ("name", " \t\n", "EMPTY_VALUE"),
+        ("component_type", 1, "INVALID_TYPE"),
+        ("component_type", " \t\n", "EMPTY_VALUE"),
+        ("properties", [], "INVALID_TYPE"),
+    ],
+)
+def test_invalid_component_members_are_reported(
+    field: str,
+    value: object,
+    expected_code: str,
+) -> None:
+    request = make_v02_request()
+    request["component"][field] = value  # type: ignore[index]
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        (f"/component/{field}", expected_code)
+    ]
+
+
+def test_empty_and_arbitrary_opaque_properties_are_valid() -> None:
+    request = make_v02_request()
+    assert Validator().validate(request).is_valid
+
+    request["component"]["properties"] = {  # type: ignore[index]
+        "anything": {"nested": [None, True, 3.5, "value"]},
+        "unknown/unit": {"not": "semantically validated"},
+    }
+    assert Validator().validate(request).is_valid
+
+
+def test_component_validation_collects_and_sorts_independent_issues() -> None:
+    request = make_v02_request()
+    request["component"] = {
+        "properties": 42,
+        "name": " ",
+        "component_id": "invalid id",
+        "unexpected": True,
+    }
+
+    assert [(issue.path, issue.code) for issue in Validator().validate(request).issues] == [
+        ("/component/component_id", "INVALID_FORMAT"),
+        ("/component/component_type", "REQUIRED_FIELD_MISSING"),
+        ("/component/name", "EMPTY_VALUE"),
+        ("/component/properties", "INVALID_TYPE"),
+        ("/component/unexpected", "UNKNOWN_FIELD"),
+    ]
+
+
+def test_component_validation_does_not_mutate_input() -> None:
+    from copy import deepcopy
+
+    request = make_v02_request()
+    request["component"]["properties"] = {"nested": [1, 2]}  # type: ignore[index]
+    before = deepcopy(request)
+
+    Validator().validate(request)
+
+    assert request == before
